@@ -1,0 +1,170 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 用户模型
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String   @unique
+  password  String
+  avatar    String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联
+  favorites   Favorite[]
+  likes       Like[]
+  comments    Comment[]
+  ratings     Rating[]
+  novels      Novel[]    @relation("AuthorNovels")
+  readHistory ReadHistory[]
+
+  @@map("users")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// 小说模型
+model Novel {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String   @db.Text
+  cover       String?
+  authorId    Int
+  status      NovelStatus @default(ONGOING)
+  tags        String[]
+  viewCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联
+  author    User       @relation("AuthorNovels", fields: [authorId], references: [id])
+  chapters  Chapter[]
+  favorites Favorite[]
+  likes     Like[]
+  ratings   Rating[]
+  readHistory ReadHistory[]
+
+  @@map("novels")
+}
+
+enum NovelStatus {
+  ONGOING
+  COMPLETED
+  HIATUS
+}
+
+// 章节模型
+model Chapter {
+  id        Int      @id @default(autoincrement())
+  novelId   Int
+  title     String
+  content   String   @db.Text
+  order     Int
+  wordCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联
+  novel    Novel     @relation(fields: [novelId], references: [id], onDelete: Cascade)
+  comments Comment[]
+
+  @@unique([novelId, order])
+  @@map("chapters")
+}
+
+// 评论模型（支持段落评论）
+model Comment {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  chapterId  Int
+  content    String   @db.Text
+  paragraph  Int?     // 段落索引，null 表示章节级评论
+  parentId   Int?     // 父评论ID，用于回复
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // 关联
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter  Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+// 收藏模型
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  novelId   Int
+  createdAt DateTime @default(now())
+
+  // 关联
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, novelId])
+  @@map("favorites")
+}
+
+// 点赞模型
+model Like {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  novelId   Int
+  createdAt DateTime @default(now())
+
+  // 关联
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, novelId])
+  @@map("likes")
+}
+
+// 评分模型
+model Rating {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  novelId   Int
+  score     Int      // 1-5 分
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, novelId])
+  @@map("ratings")
+}
+
+// 阅读历史
+model ReadHistory {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  novelId       Int
+  lastChapterId Int?
+  progress      Float    @default(0) // 0-100 百分比
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // 关联
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  novel Novel @relation(fields: [novelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, novelId])
+  @@map("read_history")
+}

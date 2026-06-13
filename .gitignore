@@ -1,0 +1,45 @@
+# Dependencies
+node_modules
+
+# Nuxt build output
+.nuxt
+.output
+dist
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage
+.nyc_output
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# 题目和对话相关文件（非项目代码）
+题目.md
+迭代.md
+代码生成.md
+对话/
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal

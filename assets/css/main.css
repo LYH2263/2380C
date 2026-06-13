@@ -1,0 +1,75 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 min-h-screen text-white;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-neuro-primary to-neuro-secondary 
+           text-white font-semibold rounded-xl shadow-lg 
+           hover:shadow-neuro-primary/50 hover:scale-105 
+           transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/20 
+           text-white font-semibold rounded-xl 
+           hover:bg-white/20 hover:border-white/30 
+           transition-all duration-300;
+  }
+
+  .card {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl 
+           shadow-xl hover:shadow-2xl hover:bg-white/10 
+           transition-all duration-300;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl 
+           text-white placeholder-white/50 
+           focus:outline-none focus:ring-2 focus:ring-neuro-primary/50 focus:border-neuro-primary 
+           transition-all duration-300;
+  }
+
+  .prose-novel {
+    @apply text-gray-200 leading-relaxed text-lg;
+  }
+
+  .prose-novel p {
+    @apply mb-4 indent-8;
+  }
+
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  }
+
+  .skeleton {
+    @apply animate-pulse bg-white/10 rounded;
+  }
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-800/50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-neuro-primary/50 rounded-full hover:bg-neuro-primary/70;
+}
+
+/* 选中文本样式 */
+::selection {
+  @apply bg-neuro-primary/30;
+}

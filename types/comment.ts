@@ -54,3 +54,7 @@ export interface SubmitCommentOptions {
   paragraphIndex?: number
   onSuccess?: () => void | Promise<void>
 }
+
+export interface CommentListParams {
+  chapterId: number
+}

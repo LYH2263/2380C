@@ -50,7 +50,7 @@
       </div>
 
       <!-- Results -->
-      <div v-if="pending" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div v-if="isLoading" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <NovelCardSkeleton v-for="i in 8" :key="i" />
       </div>
       <div v-else-if="novels.length === 0" class="text-center py-20">
@@ -105,29 +105,48 @@
 </template>
 
 <script setup lang="ts">
+import { novelsService } from '~/services/novels'
+import type { NovelListParams, NovelListItem, Pagination } from '~/types'
+
 const route = useRoute()
 const router = useRouter()
 
 const page = ref(Number(route.query.page) || 1)
 const search = ref((route.query.search as string) || '')
 const tag = ref((route.query.tag as string) || '')
-const status = ref((route.query.status as string) || '')
-const sort = ref((route.query.sort as string) || 'latest')
+const status = ref<'' | 'ONGOING' | 'COMPLETED' | 'HIATUS'>((route.query.status as any) || '')
+const sort = ref<'latest' | 'popular' | 'rating'>((route.query.sort as any) || 'latest')
 
-const { data, pending, refresh } = await useFetch('/api/novels', {
-  query: computed(() => ({
-    page: page.value,
-    search: search.value,
-    tag: tag.value,
-    status: status.value,
-    sort: sort.value,
-    limit: 12
-  })),
-  watch: [page, tag, status, sort]
+const queryParams = computed<NovelListParams>(() => ({
+  page: page.value,
+  search: search.value,
+  tag: tag.value,
+  status: status.value,
+  sort: sort.value,
+  limit: 12
+}))
+
+const queryKey = computed(() => `novels:list:${JSON.stringify(queryParams.value)}`)
+
+const { data, isLoading, refetch } = useQuery(
+  queryKey.value,
+  () => novelsService.getNovels(queryParams.value),
+  {
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true
+  }
+)
+
+watch(queryKey, () => {
+  refetch()
 })
 
-const novels = computed(() => data.value?.novels || [])
-const pagination = computed(() => data.value?.pagination)
+watch([page, tag, status, sort], () => {
+  refetch()
+})
+
+const novels = computed<NovelListItem[]>(() => data.value?.novels || [])
+const pagination = computed<Pagination | undefined>(() => data.value?.pagination)
 
 const displayPages = computed(() => {
   if (!pagination.value) return []
@@ -152,10 +171,9 @@ const displayPages = computed(() => {
 
 const handleSearch = () => {
   page.value = 1
-  refresh()
+  refetch()
 }
 
-// 同步 URL
 watch([page, search, tag, status, sort], () => {
   const query: any = {}
   if (page.value > 1) query.page = page.value

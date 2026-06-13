@@ -2,7 +2,7 @@
   <div class="min-h-screen py-8">
     <div class="container mx-auto px-4">
       <!-- Loading State -->
-      <div v-if="pending" class="animate-pulse space-y-8">
+      <div v-if="isLoading" class="animate-pulse space-y-8">
         <div class="flex gap-8">
           <div class="w-64 h-96 bg-white/10 rounded-2xl flex-shrink-0" />
           <div class="flex-1 space-y-4">
@@ -101,7 +101,7 @@
 
               <button
                 @click="handleLike"
-                :disabled="!user || likeLoading"
+                :disabled="!user || likeMutation.isLoading.value"
                 :class="[
                   'btn-secondary flex items-center gap-2',
                   novel.isLiked && 'bg-neuro-primary/20 border-neuro-primary'
@@ -113,7 +113,7 @@
 
               <button
                 @click="handleFavorite"
-                :disabled="!user || favoriteLoading"
+                :disabled="!user || favoriteMutation.isLoading.value"
                 :class="[
                   'btn-secondary flex items-center gap-2',
                   novel.isFavorited && 'bg-neuro-secondary/20 border-neuro-secondary'
@@ -132,7 +132,7 @@
                 <Button
                   v-if="userRating !== novel.userRating"
                   @click="handleRating"
-                  :loading="ratingLoading"
+                  :loading="ratingMutation.isLoading.value"
                   variant="primary"
                   size="sm"
                 >
@@ -187,30 +187,40 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
+import { novelsService } from '~/services/novels'
+import type { NovelDetail, NovelStatus, RatingPayload } from '~/types'
+
 const route = useRoute()
-const { user } = useAuth()
+const authStore = useAuthStore()
+const { user } = storeToRefs(authStore)
 const toast = useToast()
 
 const novelId = computed(() => Number(route.params.id))
+const novelQueryKey = computed(() => `novel:detail:${novelId.value}`)
 
-const { data: novel, pending, refresh } = await useFetch(`/api/novels/${novelId.value}`)
+const { data: novel, isLoading, refetch, setOptimisticData } = useQuery<NovelDetail>(
+  novelQueryKey.value,
+  () => novelsService.getNovelById(novelId.value),
+  {
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true
+  }
+)
 
 const userRating = ref(novel.value?.userRating || 0)
-const likeLoading = ref(false)
-const favoriteLoading = ref(false)
-const ratingLoading = ref(false)
 
 watch(() => novel.value?.userRating, (val) => {
   userRating.value = val || 0
 })
 
-const statusLabels: Record<string, string> = {
+const statusLabels: Record<NovelStatus, string> = {
   ONGOING: '连载中',
   COMPLETED: '已完结',
   HIATUS: '暂停更新'
 }
 
-const statusClasses: Record<string, string> = {
+const statusClasses: Record<NovelStatus, string> = {
   ONGOING: 'bg-green-500/80 text-white',
   COMPLETED: 'bg-blue-500/80 text-white',
   HIATUS: 'bg-yellow-500/80 text-white'
@@ -226,21 +236,88 @@ const formatDate = (date: string) => {
   return new Date(date).toLocaleDateString('zh-CN')
 }
 
+const likeMutation = useMutation(
+  () => novelsService.likeNovel(novelId.value),
+  {
+    onMutate: () => {
+      setOptimisticData(prev => {
+        if (!prev) return prev
+        const newIsLiked = !prev.isLiked
+        return {
+          ...prev,
+          isLiked: newIsLiked,
+          _count: {
+            ...prev._count,
+            likes: newIsLiked ? prev._count.likes + 1 : prev._count.likes - 1
+          }
+        }
+      })
+    },
+    onSuccess: () => {
+      toast.success(novel.value?.isLiked ? '点赞成功' : '已取消点赞')
+    },
+    invalidateQueries: ['novels:list']
+  }
+)
+
+const favoriteMutation = useMutation(
+  () => novelsService.favoriteNovel(novelId.value),
+  {
+    onMutate: () => {
+      setOptimisticData(prev => {
+        if (!prev) return prev
+        const newIsFavorited = !prev.isFavorited
+        return {
+          ...prev,
+          isFavorited: newIsFavorited,
+          _count: {
+            ...prev._count,
+            favorites: newIsFavorited ? prev._count.favorites + 1 : prev._count.favorites - 1
+          }
+        }
+      })
+    },
+    onSuccess: () => {
+      toast.success(novel.value?.isFavorited ? '收藏成功' : '已取消收藏')
+    },
+    invalidateQueries: ['novels:list']
+  }
+)
+
+const ratingMutation = useMutation(
+  (payload: RatingPayload) => novelsService.rateNovel(novelId.value, payload),
+  {
+    onMutate: (payload) => {
+      setOptimisticData(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          userRating: payload.score
+        }
+      })
+    },
+    onSuccess: (result) => {
+      if (result) {
+        setOptimisticData(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            avgRating: result.avgRating
+          }
+        })
+      }
+      toast.success('评分成功')
+    },
+    invalidateQueries: ['novels:list']
+  }
+)
+
 const handleLike = async () => {
   if (!user.value) {
     toast.warning('请先登录')
     return
   }
-  likeLoading.value = true
-  try {
-    await $fetch(`/api/novels/${novelId.value}/like`, { method: 'POST' })
-    await refresh()
-    toast.success(novel.value?.isLiked ? '点赞成功' : '已取消点赞')
-  } catch (e: any) {
-    toast.error(e.message || '操作失败')
-  } finally {
-    likeLoading.value = false
-  }
+  await likeMutation.mutate()
 }
 
 const handleFavorite = async () => {
@@ -248,32 +325,11 @@ const handleFavorite = async () => {
     toast.warning('请先登录')
     return
   }
-  favoriteLoading.value = true
-  try {
-    await $fetch(`/api/novels/${novelId.value}/favorite`, { method: 'POST' })
-    await refresh()
-    toast.success(novel.value?.isFavorited ? '收藏成功' : '已取消收藏')
-  } catch (e: any) {
-    toast.error(e.message || '操作失败')
-  } finally {
-    favoriteLoading.value = false
-  }
+  await favoriteMutation.mutate()
 }
 
 const handleRating = async () => {
-  ratingLoading.value = true
-  try {
-    await $fetch(`/api/novels/${novelId.value}/rating`, {
-      method: 'POST',
-      body: { score: userRating.value }
-    })
-    await refresh()
-    toast.success('评分成功')
-  } catch (e: any) {
-    toast.error(e.message || '评分失败')
-  } finally {
-    ratingLoading.value = false
-  }
+  await ratingMutation.mutate({ score: userRating.value })
 }
 
 useHead({
